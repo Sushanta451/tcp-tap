@@ -114,7 +114,7 @@ cmd_demo() {
   sleep 0.3
 
   echo "--- proxy ---"
-  "${build_dir}/tcptap" --listen 9100 --upstream 127.0.0.1:9101 &
+  "${build_dir}/tcptap" --listen 9100 --upstream 127.0.0.1:9101 --once &
   tap_pid=$!
   sleep 0.3
 

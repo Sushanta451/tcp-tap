@@ -26,7 +26,7 @@ fail() {
   exit 1
 }
 
-"${bin_dir}/tcptap" --listen "${tap_port}" --upstream "127.0.0.1:${dead_port}" \
+"${bin_dir}/tcptap" --listen "${tap_port}" --upstream "127.0.0.1:${dead_port}" --once \
   >"${work}/tap.log" 2>&1 &
 tap_pid=$!
 

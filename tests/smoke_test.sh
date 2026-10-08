@@ -61,7 +61,7 @@ wait_for() {
 echo_pid=$!
 wait_for "${work}/echo.log" "echo listening" || fail "upstream never came up"
 
-"${bin_dir}/tcptap" --listen "${tap_port}" --upstream "127.0.0.1:${echo_port}" \
+"${bin_dir}/tcptap" --listen "${tap_port}" --upstream "127.0.0.1:${echo_port}" --once \
   >"${work}/tap.log" 2>&1 &
 tap_pid=$!
 wait_for "${work}/tap.log" "listening on" || fail "proxy never came up"

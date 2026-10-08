@@ -313,11 +313,12 @@ bool relay(int down, int up)
 
 void usage()
 {
-    std::cerr << "usage: tcptap --listen <port> --upstream <host>:<port>\n"
+    std::cerr << "usage: tcptap --listen <port> --upstream <host>:<port> [--once]\n"
               << "\n"
               << "Accepts one connection on 127.0.0.1:<port>, dials the upstream,\n"
               << "and relays bytes between them, logging every chunk and its\n"
-              << "direction (c>u downstream-to-upstream, u>c the other way).\n";
+              << "direction (c>u downstream-to-upstream, u>c the other way).\n"
+              << "--once serves a single connection, then exits.\n";
 }
 
 } // namespace
@@ -327,6 +328,7 @@ int main(int argc, char* argv[])
     uint16_t listen_port{0};
     std::string upstream_host;
     std::string upstream_port;
+    bool once{false};
 
     for (int i = 1; i < argc; ++i)
     {
@@ -348,6 +350,10 @@ int main(int argc, char* argv[])
                 std::cerr << "error: --upstream wants <host>:<port>\n";
                 return 1;
             }
+        }
+        else if (flag == "--once")
+        {
+            once = true;
         }
         else if (flag == "--help" || flag == "-h")
         {
@@ -385,7 +391,10 @@ int main(int argc, char* argv[])
         close(listen_fd);
         return 1;
     }
-    // v1 serves exactly one connection, so the listener has done its job.
+    // Every run still serves exactly one connection, so the listener has done its
+    // job. --once pins that behaviour ahead of the accept loop that replaces it,
+    // letting the tests ask for a proxy that terminates on its own.
+    (void)once;
     close(listen_fd);
 
     char peer_text[INET_ADDRSTRLEN]{};
