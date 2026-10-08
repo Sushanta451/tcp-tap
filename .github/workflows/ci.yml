@@ -5,10 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+# The runner image is pinned rather than `ubuntu-latest`. The floating label
+# migrates to a new Ubuntu release on its own schedule, and an image change that
+# turns this red is indistinguishable from a change in the code that did it.
+# Bumping the pin is a deliberate commit, so the diff says which it was.
 jobs:
   build:
     name: build (${{ matrix.compiler }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -20,7 +24,7 @@ jobs:
             cc: clang
             cxx: clang++
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install ninja
         run: sudo apt-get update && sudo apt-get install -y ninja-build
       - name: Configure
@@ -35,9 +39,9 @@ jobs:
 
   sanitizers:
     name: tests (ASan + UBSan)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install ninja
         run: sudo apt-get update && sudo apt-get install -y ninja-build
       - name: Configure
@@ -55,9 +59,9 @@ jobs:
 
   format:
     name: clang-format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install clang-format
         run: sudo apt-get update && sudo apt-get install -y clang-format
       - name: Check formatting
@@ -65,8 +69,8 @@ jobs:
 
   shellcheck:
     name: shellcheck
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Lint shell
         run: shellcheck scripts/dev.sh scripts/install_hooks.sh tests/smoke_test.sh tests/refused_test.sh .githooks/commit-msg
