@@ -50,7 +50,8 @@ jobs:
   # There is deliberately no clang-tidy job yet. Every check here is one that
   # `./scripts/dev.sh ci --strict` can also run locally, so nothing lands that
   # the pre-commit gate was unable to see. clang-tidy needs Homebrew's llvm on
-  # the dev machine; wiring it in is a ROADMAP item, not a silent asymmetry.
+  # the dev machine; it gets wired in once that is installed, rather than
+  # standing here as a check the local gate cannot see.
 
   format:
     name: clang-format

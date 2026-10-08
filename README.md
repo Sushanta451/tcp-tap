@@ -5,10 +5,8 @@ between a client and a server, relays bytes in both directions, logs every
 chunk it carries — and is being taught to degrade the link on purpose, so the
 programs on either end can be tested against a network that misbehaves.
 
-`connection-logger` watched one end of a connection from the inside. This sits
-in the middle, which is where the harder problems are: two descriptors to
-multiplex, half-closes to forward, partial writes to buffer, backpressure to
-respect. No frameworks — the syscalls are the point.
+No frameworks and no dependencies. Every networking library is a wrapper around
+the same dozen system calls; here the syscalls are the point.
 
 ```
 $ ./scripts/dev.sh demo
@@ -53,7 +51,26 @@ watch the conversation:
 
 ```bash
 ./scripts/dev.sh tap --listen 8080 --upstream example.com:80
+curl -v http://127.0.0.1:8080/
 ```
+
+## Tech stack
+
+| Layer | Choice |
+| --- | --- |
+| Language | C++20, no dependencies |
+| Network API | POSIX / BSD sockets — `socket`, `bind`, `listen`, `accept`, `connect`, `recv`, `send`, `shutdown` |
+| Multiplexing | `select()` today; `poll()`, then `kqueue` (BSD/macOS) and `epoll` (Linux) |
+| Protocols read by hand | TCP half-close & RST, HTTP/1.1 request lines, TLS record layer + ClientHello SNI |
+| Traffic shaping | Seeded delay/jitter, rechunking, token-bucket rate limits, bit corruption, mid-stream RST |
+| Capture output | `libpcap` / pcapng, readable in Wireshark |
+| Build | CMake ≥ 3.20 + Ninja |
+| Test | CTest driving the real binaries over real sockets |
+| Correctness | `-Werror -Wconversion -Wshadow`, AddressSanitizer, UBSan |
+| CI | GitHub Actions — gcc + clang on Ubuntu |
+
+Why each of those, and what it teaches, is in
+[docs/OVERVIEW.md](docs/OVERVIEW.md).
 
 ## The dev CLI
 
@@ -89,21 +106,31 @@ tests/
 scripts/
   dev.sh               the dev CLI
   install_hooks.sh     points core.hooksPath at .githooks/
-.githooks/commit-msg   rejects commit messages carrying AI attribution
-ROADMAP.md             the work queue — thirty dated days
-CLAUDE.md              project rules
+docs/
+  OVERVIEW.md          what it is, why raw syscalls, the three hard problems
+  CONVENTIONS.md       the rules the code follows
 ```
 
 ## Status
 
-v1 is working: one connection at a time, relayed with `select()`, every chunk
-logged with its direction, half-closes forwarded so each direction can drain
+v1 works: one connection at a time, relayed with `select()`, every chunk logged
+with its direction, half-closes forwarded so each direction can drain
 independently, and a dead upstream reported rather than silently tolerated.
 Three end-to-end tests cover the relay, a longer payload, and a refused
 upstream.
 
-Where it goes next — a real event loop, then the fault injection that is the
-point of the whole thing — is laid out day by day in [ROADMAP.md](ROADMAP.md).
+Where it goes, roughly in order:
+
+1. **A real event loop** — serve connections back to back, then concurrently:
+   `poll()`, non-blocking sockets, per-direction write buffers for backpressure,
+   and finally `kqueue` / `epoll`.
+2. **The fault injection** — seeded `--delay`, `--jitter`, `--chunk`, `--rate`,
+   `--corrupt`, `--drop-after`, `--rst`, composable in a fixed order, with named
+   `--profile` presets for the common shapes of bad network.
+3. **Observability** — hexdump output, byte accounting, log levels, and pcap
+   files that open in Wireshark.
+4. **Protocol awareness** — IPv6, HTTP request-line peeking, TLS record and SNI
+   parsing, and SNI-based upstream routing.
 
 ## Tests
 
@@ -116,3 +143,7 @@ point of the whole thing — is laid out day by day in [ROADMAP.md](ROADMAP.md).
 The tests run the real binaries against each other over real sockets — three
 processes, two TCP connections, no mocks. The only way to find out whether a
 proxy relays bytes is to relay bytes.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
