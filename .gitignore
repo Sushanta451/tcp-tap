@@ -1,0 +1,7 @@
+build/
+build-asan/
+compile_commands.json
+.DS_Store
+
+# Captures the pcap writer produces (ROADMAP day 26).
+*.pcap

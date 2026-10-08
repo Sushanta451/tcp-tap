@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: build (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            cc: gcc
+            cxx: g++
+          - compiler: clang
+            cc: clang
+            cxx: clang++
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Configure
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DTCPTAP_WERROR=ON -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  sanitizers:
+    name: tests (ASan + UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Configure
+        run: cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON -DTCPTAP_WERROR=ON -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build-asan
+      - name: Test
+        run: ctest --test-dir build-asan --output-on-failure
+
+  # There is deliberately no clang-tidy job yet. Every check here is one that
+  # `./scripts/dev.sh ci --strict` can also run locally, so nothing lands that
+  # the pre-commit gate was unable to see. clang-tidy needs Homebrew's llvm on
+  # the dev machine; wiring it in is a ROADMAP item, not a silent asymmetry.
+
+  format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Check formatting
+        run: clang-format --dry-run --Werror src/proxy/tap.cpp src/testing/echo_server.cpp src/testing/send_client.cpp
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint shell
+        run: shellcheck scripts/dev.sh scripts/install_hooks.sh tests/smoke_test.sh tests/refused_test.sh .githooks/commit-msg

@@ -1,0 +1,14 @@
+# Normalize line endings
+* text=auto
+
+*.sh eol=lf
+*.yml eol=lf
+*.yaml eol=lf
+*.json eol=lf
+*.cpp eol=lf
+*.h eol=lf
+*.hpp eol=lf
+*.md eol=lf
+.gitattributes eol=lf
+.clang-tidy eol=lf
+.clang-format eol=lf

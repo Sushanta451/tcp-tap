@@ -1,0 +1,16 @@
+---
+# Matches the style already in the tree: Allman braces, 4 spaces, brace init.
+# Not enforced in CI — run `./scripts/dev.sh fmt` when you want it applied.
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+BreakBeforeBraces: Allman
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortLoopsOnASingleLine: false
+PointerAlignment: Left
+SpaceBeforeCpp11BracedList: false
+SortIncludes: false
