@@ -311,6 +311,52 @@ bool relay(int down, int up)
     return true;
 }
 
+// Dial the upstream for an accepted downstream connection and relay to
+// completion. Owns `down` and closes it on every path. A failure here is about
+// this connection only; the listener is still good, so the caller decides
+// whether to carry on.
+bool serve_one(int down, const sockaddr_in& peer, const std::string& upstream_host,
+               const std::string& upstream_port)
+{
+    char peer_text[INET_ADDRSTRLEN]{};
+    if (inet_ntop(AF_INET, &peer.sin_addr, peer_text, sizeof(peer_text)) == nullptr)
+    {
+        std::cerr << "inet_ntop: " << std::strerror(errno) << '\n';
+        close(down);
+        return false;
+    }
+    std::cout << "accepted " << peer_text << ':' << ntohs(peer.sin_port) << std::endl;
+
+    int up{dial(upstream_host, upstream_port)};
+    if (up == -1)
+    {
+        close(down);
+        return false;
+    }
+
+    if (!suppress_sigpipe(down) || !suppress_sigpipe(up))
+    {
+        close(down);
+        close(up);
+        return false;
+    }
+
+    bool relayed{relay(down, up)};
+
+    if (close(down) == -1)
+    {
+        std::cerr << "close(downstream): " << std::strerror(errno) << '\n';
+        relayed = false;
+    }
+    if (close(up) == -1)
+    {
+        std::cerr << "close(upstream): " << std::strerror(errno) << '\n';
+        relayed = false;
+    }
+
+    return relayed;
+}
+
 void usage()
 {
     std::cerr << "usage: tcptap --listen <port> --upstream <host>:<port> [--once]\n"
@@ -382,56 +428,35 @@ int main(int argc, char* argv[])
     std::cout << "listening on 127.0.0.1:" << listen_port << ", upstream " << upstream_host << ':'
               << upstream_port << std::endl;
 
-    sockaddr_in peer{};
-    auto peer_len{static_cast<socklen_t>(sizeof(peer))};
-    int down{accept(listen_fd, reinterpret_cast<sockaddr*>(&peer), &peer_len)};
-    if (down == -1)
+    bool ok{true};
+    while (true)
     {
-        std::cerr << "accept: " << std::strerror(errno) << '\n';
-        close(listen_fd);
-        return 1;
-    }
-    // Every run still serves exactly one connection, so the listener has done its
-    // job. --once pins that behaviour ahead of the accept loop that replaces it,
-    // letting the tests ask for a proxy that terminates on its own.
-    (void)once;
-    close(listen_fd);
-
-    char peer_text[INET_ADDRSTRLEN]{};
-    if (inet_ntop(AF_INET, &peer.sin_addr, peer_text, sizeof(peer_text)) == nullptr)
-    {
-        std::cerr << "inet_ntop: " << std::strerror(errno) << '\n';
-        close(down);
-        return 1;
-    }
-    std::cout << "accepted " << peer_text << ':' << ntohs(peer.sin_port) << std::endl;
-
-    int up{dial(upstream_host, upstream_port)};
-    if (up == -1)
-    {
-        close(down);
-        return 1;
+        sockaddr_in peer{};
+        auto peer_len{static_cast<socklen_t>(sizeof(peer))};
+        int down{accept(listen_fd, reinterpret_cast<sockaddr*>(&peer), &peer_len)};
+        if (down == -1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            // An accept failure means the listener itself is in trouble; looping
+            // on it would just spin, so this one ends the run.
+            std::cerr << "accept: " << std::strerror(errno) << '\n';
+            ok = false;
+            break;
+        }
+        ok = serve_one(down, peer, upstream_host, upstream_port);
+        if (once)
+        {
+            break;
+        }
     }
 
-    if (!suppress_sigpipe(down) || !suppress_sigpipe(up))
+    if (close(listen_fd) == -1)
     {
-        close(down);
-        close(up);
-        return 1;
+        std::cerr << "close(listener): " << std::strerror(errno) << '\n';
+        ok = false;
     }
-
-    bool relayed{relay(down, up)};
-
-    if (close(down) == -1)
-    {
-        std::cerr << "close(downstream): " << std::strerror(errno) << '\n';
-        relayed = false;
-    }
-    if (close(up) == -1)
-    {
-        std::cerr << "close(upstream): " << std::strerror(errno) << '\n';
-        relayed = false;
-    }
-
-    return relayed ? 0 : 1;
+    return ok ? 0 : 1;
 }
