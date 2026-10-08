@@ -446,9 +446,13 @@ int main(int argc, char* argv[])
             ok = false;
             break;
         }
-        ok = serve_one(down, peer, upstream_host, upstream_port);
+        // A connection that goes wrong is this connection's problem, not the
+        // listener's, so it does not decide the exit status of a run that
+        // keeps serving. Under --once the single connection *is* the run.
+        bool served{serve_one(down, peer, upstream_host, upstream_port)};
         if (once)
         {
+            ok = served;
             break;
         }
     }
